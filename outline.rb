@@ -28,7 +28,6 @@ class Outline
     tesselate_curves
     buf = Raster.new(image.width, image.height)
     draw_lines(buf)
-    buf.print_debug
     image.pixels = buf.post_process
     return image
   end
@@ -110,5 +109,4 @@ class Outline
     add_elem(beg, loose_end, ctrl)
     return true
   end
-  
 end
