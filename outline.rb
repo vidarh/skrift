@@ -56,11 +56,11 @@ class Outline
   end
 
 
-  def tesselate_curves # 1199
+  def tesselate_curves
     @curves.each { |c| tesselate_curve(c) }
   end
 
-  def draw_lines(buf) # 1291
+  def draw_lines(buf)
     @lines.each {|line| buf.draw_line(points[line.beg], points[line.end]) }
   end
 
