@@ -214,7 +214,6 @@ class Font
         accum += geti16(offset)
         offset += 2
       end
-      points[base_point+i] ||= Point.new
       points[base_point+i].y = accum.to_f
     end
     true
