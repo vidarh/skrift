@@ -23,17 +23,14 @@ class Raster
   
   # Integrate the values in the buffer to arrive at the final grayscale image.
   def post_process
-    image = []
     accum = 0.0
-    num = @width * @height
-    (0..num-1).each do |i|
+    (@width*@height).times.collect do |i|
       cell = @cells[i]
       value = (accum + cell.area).abs
       value = [value, 1.0].min * 255.0 + 0.5
-      image << (value.to_i & 0xff)
       accum += cell.cover
+      value.to_i & 0xff
     end
-    image
   end
 
   # Draws a line into the buffer. Uses a custom 2D raycasting algorithm to do so.
