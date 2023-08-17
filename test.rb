@@ -1,6 +1,6 @@
 
 require 'pp'
-require_relative 'rubyschrift'
+require_relative './lib/skrift'
 
 f = Font.load("resources/Ubuntu-Regular.ttf")
 #f = Font.load("resources/FiraGO-Regular_extended_with_NotoSansEgyptianHieroglyphs-Regular.ttf")
@@ -56,7 +56,7 @@ if sft.render(gid, img)
 #p r
 #img.pixels = r.post_process
 
-(0..(img.height-1)).each do |row|
+img.height.times do |row|
   img.pixels[row*img.width .. (row+1)*img.width-1].map do |s|
     print "\033[32;48;2;#{s};#{s};#{s}m%02x " % s
   end
