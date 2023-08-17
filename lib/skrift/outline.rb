@@ -72,27 +72,27 @@ class Outline
       loose_end = base_point + count
     else
       loose_end = self.points.length
-      self.points << midpoint(self.points[base_point], self.points[base_point + count - 1])
+      @points << midpoint(self.points[base_point], self.points[base_point + count - 1])
     end
     beg  = loose_end
     ctrl = nil
     count.times do |i|
       cur = base_point + i
       if flags[i].allbits?(Font::POINT_IS_ON_CURVE)
-        add_elem(beg, cur, ctrl)
+        add_seg(Segment.new(beg, cur, ctrl))
         beg = cur
         ctrl = nil
       else
         if ctrl
           center = @points.length
           @points << midpoint(self.points[ctrl], self.points[cur])
-          @curves << Curve.new(beg, center, ctrl)
+          @curves << Segment.new(beg, center, ctrl)
           beg = center
         end
         ctrl = cur
       end
     end
-    add_elem(beg, loose_end, ctrl)
+    add_seg(Segment.new(beg, loose_end, ctrl))
     return true
   end
 end
