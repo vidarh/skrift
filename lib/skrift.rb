@@ -5,10 +5,10 @@ Point = Struct.new(:x,:y)
 Image = Struct.new(:width, :height, :pixels)
 Kerning = Struct.new(:x_shift, :y_shift)
 
-require_relative './sft'
-require_relative './outline'
-require_relative './raster'
-require_relative './font'
+require_relative './skrift/sft'
+require_relative './skrift/outline'
+require_relative './skrift/raster'
+require_relative './skrift/font'
 
 
 def midpoint(a, b) # 359
