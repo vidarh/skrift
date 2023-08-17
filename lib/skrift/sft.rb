@@ -67,20 +67,14 @@ class SFT
     # Set up the transformation matrix such that
     # the transformed bounding boxes min corner lines
     # up with the (0, 0) point.
-    transform=[]
-    transform[0] = @x_scale.to_f / @font.units_per_em
-    transform[1] = 0.0
-    transform[2] = 0.0
-    transform[4] = @x_offset - bbox[0]
+    xr = [@x_scale.to_f / @font.units_per_em, 0.0, @x_offset - bbox[0]]
+    ys = @y_scale.to_f / @font.units_per_em
     if @flags.allbits?(SFT::DOWNWARD_Y)
-      transform[3] = - @y_scale.to_f / @font.units_per_em
-      transform[5] = bbox[3] - @y_offset
+      transform = Matrix.rows([xr, [0.0, -ys, bbox[3] - @y_offset]])
     else
-      transform[3] = + @y_scale.to_f / @font.units_per_em
-      transform[5] = @y_offset - bbox[1]
+      transform = Matrix.rows([xr, [0.0, +ys, @y_offset - bbox[1] ]])
     end
-    outl = Outline.new
-    return false if @font.decode_outline(outline, 0, outl) < 0
+    outl = @font.decode_outline(outline)
     outl.render(transform, image)
   end
 

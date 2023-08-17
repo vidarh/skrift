@@ -184,13 +184,12 @@ class Font
         accum += geti16(offset)
         offset += 2
       end
-      points[base_point+i] ||= Point.new
-      points[base_point+i].x = accum.to_f
+      points << Vector[accum.to_f,0.0]
     end
 
     accum = 0
     num_pts.times do |i|
-      if (flags[i] & Y_CHANGE_IS_SMALL) > 0
+      if flags[i].allbits?(Y_CHANGE_IS_SMALL)
         value = getu8(offset)
         offset+=1
         bit = flags[i].allbits?(Y_CHANGE_IS_POSITIVE) ? 1 : 0
@@ -199,7 +198,7 @@ class Font
         accum += geti16(offset)
         offset += 2
       end
-      points[base_point+i].y = accum.to_f
+      points[base_point+i][1] = accum.to_f
     end
     true
   end
@@ -279,7 +278,7 @@ class Font
       outl.decode_contour(flags[beg..-1], base_points+beg, count)
       beg = end_pts[i] + 1
     end
-    return 0
+    outl
   end
 
   def compound_outline(offset, rec_depth, outl) # 1057
@@ -287,7 +286,6 @@ class Font
     return -1 if rec_depth >= 4
     flags = THERE_ARE_MORE_COMPONENTS
     while flags.allbits?(THERE_ARE_MORE_COMPONENTS)
-      local = [0,0,0,0,0,0]
       flags = getu16(offset)
       glyph = getu16(offset + 2)
       offset += 4
@@ -295,39 +293,34 @@ class Font
       return -1 if (flags & ACTUAL_XY_OFFSETS) == 0
       # Read additional X and Y offsets (in FUnits) of this component.
       if (flags & OFFSETS_ARE_LARGE) != 0
-        local[4] = geti16(offset)
-        local[5] = geti16(offset + 2)
+        local = Matrix[[1.0, 0.0, geti16(offset)], [1.0,0.0, geti16(offset+2)]]
         offset += 4
       else
-        local[4] = geti8(offset)
-        local[5] = geti8(offset + 1)
+        local = Matrix[[1.0, 0.0, geti8(offset)], [1.0, 0.0, geti8(offset)+1]]
         offset += 2
       end
+
       if flags.allbits?(GOT_A_SINGLE_SCALE)
-        local[0] = geti16(offset) / 16384.0
-        local[3] = local[0]
+        local[0][0] = local[1][0] = geti16(offset) / 16384.0
         offset += 2
       elsif flags.allbits?(GOT_AN_X_AND_Y_SCALE)
-        local[0] = geti16(offset + 0) / 16384.0
-        local[3] = geti16(offset + 2) / 16384.0
+        local[0][0] = geti16(offset + 0) / 16384.0
+        local[1][0] = geti16(offset + 2) / 16384.0
         offset += 4
       elsif flags.allbits?(GOT_A_SCALE_MATRIX)
-        local[0] = geti16(offset + 0) / 16384.0
-        local[1] = geti16(offset + 2) / 16384.0
-        local[2] = geti16(offset + 4) / 16384.0
-        local[3] = geti16(offset + 6) / 16384.0
+        local[0][0] = geti16(offset + 0) / 16384.0
+        local[0][1] = geti16(offset + 2) / 16384.0
+        local[1][0] = geti16(offset + 4) / 16384.0
+        local[1][1] = geti16(offset + 6) / 16384.0
         offset += 8
-      else
-        local[0] = 1.0
-        local[3] = 1.0
       end
       outline = outline_offset(glyph)
-      return -1 if !outline
+      return nil if outline.nil?
       base_point = outl.points.length
-      return -1 if decode_outline(outline, rec_depth + 1, outl) < 0
+      return nil if decode_outline(outline, rec_depth + 1, outl).nil?
       transform_points(outl.points[base_point..-1], local)
     end
-    return 0
+    return outl
   end
 
   def kerning

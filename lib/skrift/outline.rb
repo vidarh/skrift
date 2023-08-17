@@ -1,7 +1,6 @@
 
 class Outline
-  Line  = Struct.new(:beg, :end)
-  Curve = Struct.new(:beg, :end, :ctrl)
+  Segment = Struct.new(:beg, :end, :ctrl)
   
   attr_reader :points
   
@@ -11,19 +10,22 @@ class Outline
 
   # A heuristic to tell whether a given curve can be approximated closely enough by a line. */
   def is_flat(curve)
-    a = @points[curve.beg]
-    b = @points[curve.ctrl]
-    c = @points[curve.end]
-    g = Point.new(b.x-a.x, b.y-a.y)
-    h = Point.new(c.x-a.x, c.y-a.y)
-    area2 = (g.x*h.y-h.x*g.y).abs
-    area2 <= 2.0
+    g = @points[curve.ctrl] - @points[curve.beg]
+    h = @points[curve.end]  - @points[curve.beg]
+    (g[0]*h[1]-g[1]*h[0]).abs <= 2.0
   end
 
-  def render(transform, image) # 1317
-    transform_points(self.points, transform)
-    clip_points(self.points,image.width, image.height)
-    tesselate_curves
+  def clip_points(width, height)
+    @points.each do |pt|
+      pt[0] = pt[0].clamp(0, width.pred)
+      pt[1] = pt[1].clamp(0, height.pred)
+    end
+  end
+
+  def render(transform, image)
+    transform_points(points, transform)
+    clip_points(image.width, image.height)
+    @curves.each { |c| tesselate_curve(c) }
     buf = Raster.new(image.width, image.height)
     draw_lines(buf)
     image.pixels = buf.post_process
@@ -32,13 +34,10 @@ class Outline
 
   def tesselate_curve(curve)
     stack=[]
-    top = 0
-    loop do
+    while curve
       if is_flat(curve)
-        @lines << Line.new(curve.beg, curve.end)
-        return if top == 0
-        top -= 1
-        curve = stack[top]
+        @lines << Segment.new(curve.beg, curve.end)
+        curve = stack.pop
       else
         ctrl0 = @points.length
         @points << midpoint(@points[curve.beg], @points[curve.ctrl])
@@ -46,28 +45,18 @@ class Outline
         @points << midpoint(@points[curve.ctrl], @points[curve.end])
         pivot = @points.length
         @points << midpoint(@points[ctrl0], @points[ctrl1])
-        stack[top] = Curve.new(curve.beg, pivot, ctrl0)
-        top += 1
-        curve = Curve.new(pivot, curve.end, ctrl1)
+        stack << Segment.new(curve.beg, pivot, ctrl0)
+        curve = Segment.new(pivot, curve.end, ctrl1)
       end
     end
-  end
-
-
-  def tesselate_curves
-    @curves.each { |c| tesselate_curve(c) }
   end
 
   def draw_lines(buf)
     @lines.each {|line| buf.draw_line(points[line.beg], points[line.end]) }
   end
 
-  def add_elem(beg, cur, ctrl)
-    if ctrl
-      @curves << Curve.new(beg, cur, ctrl)
-    else
-      @lines << Line.new(beg, cur)
-    end
+  def add_seg(seg)
+    seg.ctrl ? @curves << seg : @lines << seg
   end
   
   def decode_contour(flags, base_point, count) # 909
