@@ -103,7 +103,7 @@ class Font
   end
   
   # Maps unicode code points to glyph indices
-  def glyph_id(char_code) # 686
+  def glyph_id(char_code)
     each_cmap_entry do |type, table, format|
       if (type == 0004 || type == 0312)
         if format == 12 # Dispatch based on cmap format
@@ -113,9 +113,8 @@ class Font
       end
     end
 
-    # If no full repertoire cmap was found, try looking for a BMP map
+    # If no full repertoire cmap was found, try looking for a Unicode BMP map
     each_cmap_entry do |type, table, format|
-      # Unicode BMP
       if type == 0003 || type == 0301
         if format == 4
           return cmap_fmt4(table + 6, char_code)
