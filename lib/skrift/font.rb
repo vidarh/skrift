@@ -23,8 +23,7 @@ class Font
   GOT_AN_X_AND_Y_SCALE      = 0x040
   GOT_A_SCALE_MATRIX        = 0x080
   
-  attr_accessor :memory, :size, :source,
-  				:units_per_em, :loca_format, :num_long_hmtx
+  attr_accessor :memory, :units_per_em
 
   def initialize(memory) # 333
     @memory = memory
