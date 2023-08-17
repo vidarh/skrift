@@ -106,9 +106,7 @@ class Font
   def glyph_id(char_code)
     each_cmap_entry do |type, table, format|
       if (type == 0004 || type == 0312)
-        if format == 12 # Dispatch based on cmap format
-          return cmap_fmt12_13(table, char_code, 12)
-        end
+        return cmap_fmt12_13(table, char_code, 12) if format == 12
         return nil
       end
     end
@@ -116,11 +114,8 @@ class Font
     # If no full repertoire cmap was found, try looking for a Unicode BMP map
     each_cmap_entry do |type, table, format|
       if type == 0003 || type == 0301
-        if format == 4
-          return cmap_fmt4(table + 6, char_code)
-        elsif format == 6
-          return cmap_fmt6(table + 6, char_code)
-        end
+        return cmap_fmt4(table + 6, char_code) if format == 4
+        return cmap_fmt6(table + 6, char_code) if format == 6
         return nil
       end
     end
@@ -158,7 +153,7 @@ class Font
 
     # Find the segment that contains short_code by binary searching over
     # the highest codes in the segments
-    @ecodes ||= @memory[end_codes..end_codes + seg_count_x2 -1].unpack("n*")
+    @ecodes ||= at(end_codes,seg_count_x2 -1).unpack("n*")
     seg_id_x_x2 = @ecodes.bsearch_index {|i| i > char_code } * 2
 
     # Look up segment info from the arrays & short circuit if the spec requires
@@ -184,7 +179,7 @@ class Font
         value = getu8(offset)
         offset += 1
         bit = flags[i].allbits?(X_CHANGE_IS_POSITIVE) ? 1 : 0
-        accum -= (value ^ - bit) + bit
+        accum -= (value ^ -bit) + bit
       elsif flags[i].nobits?(X_CHANGE_IS_ZERO)
         accum += geti16(offset)
         offset += 2
@@ -209,39 +204,30 @@ class Font
     true
   end
 
-
-  def decode_outline(offset, rec_depth, outl)
+  def decode_outline(offset, rec_depth = 0, outl = Outline.new)
     num_contours = geti16(offset)
-    if num_contours > 0
-      # Glyph has a 'simple' outline consisting of a number of contours
-      return simple_outline(offset + 10, num_contours, outl)
-    elsif num_contours < 0
-      # Glyph has a compound outline combined from multiple other outlines
-      return compound_outline(offset + 10, rec_depth, outl)
-    end
-    return 0
+    return nil if num_contours == 0
+    return simple_outline(offset + 10, num_contours, outl) if num_contours > 0
+    return compound_outline(offset + 10, rec_depth, outl)
   end
 
   def cmap_fmt6(table, char_code) # 621
     return nil if char_code > 0xffff
     first_code  = getu16(table)
-    entry_count = getu16(table + 2)
     return nil if (char_code < first_code)
+    entry_count = getu16(table + 2)
     char_code -= first_code
-    return nil if (!(char_code < entry_count))
+    return nil if (char_code >= entry_count)
     return getu16(table + 4 + 2 * char_code)
   end
 
   def cmap_fmt12_13(table, char_code, which) # 645
-    num_entries = getu32(table + 12)
-    num_entries.times do |i|
+    getu32(table + 12).times do |i|
       first_code   = getu32(table + (i * 12) + 16)
       last_code    = getu32(table + (i * 12) + 16 + 4)
       next if char_code < first_code || char_code > last_code
       glyph_offset = getu32(table + (i * 12) + 16 + 8)
-      if  which == 12
-        return (char_code-first_code) + glyph_offset
-      end
+      glyph_offset += char_code-first_code if which == 12
       return glyph_offset
     end
     return nil
@@ -257,7 +243,7 @@ class Font
       else
         value = getu8(off)
         off += 1
-        if value & REPEAT_FLAG > 0
+        if value.allbits?(REPEAT_FLAG)
           repeat = getu8(off)
           off += 1
         end
@@ -267,7 +253,7 @@ class Font
     return off
   end
 
-  def simple_outline(offset, num_contours, outl) # 989
+  def simple_outline(offset, num_contours, outl = Outline.new)
     base_points = outl.points.length
     num_pts = getu16(offset + (num_contours - 1) *2)
     raise "Overflow" if num_pts > 65535
@@ -279,7 +265,6 @@ class Font
     end
     # Ensure that end_pts are never falling
     # Falling end_pts have no sensible interpretation and most likely only occur in malicious input
-    # Therefore we bail should we ever encounter such input
     end_pts.each_cons(2) { |a, b| raise if b < a + 1 }
     offset += 2 + getu16(offset)
 
@@ -336,10 +321,6 @@ class Font
         local[0] = 1.0
         local[3] = 1.0
       end
-      # At this point, Apple's spec more or less tells you to scale the matrix by its own L1 norm.
-      # But stb_truetype scales by the L2 norm. And FreeType2 doesn't scale at all.
-      # Furthermore, Microsoft's spec doesn't even mention anything like this.
-      # It's almost as if nobody ever uses this feature anyway.
       outline = outline_offset(glyph)
       return -1 if !outline
       base_point = outl.points.length
@@ -351,38 +332,25 @@ class Font
 
   def kerning
     return @kerning if @kerning
-
     offset = gettable("kern")
     return nil if offset.nil? || getu16(offset) != 0
-    num_tables = getu16(offset + 2)
     offset += 4
-
     @kerning = {}
-    num_tables.times do
+    getu16(offset - 2).times do
       # Read subtable header
       length = getu16(offset + 2)
       format = getu8(offset + 4)
       flags  = getu8(offset + 5)
       offset += 6
       if format == 0 && flags.allbits?(HORIZONTAL_KERNING) && flags.nobits?(MINIMUM_KERNING)
-        # Read format 0 header
-        num_pairs = getu16(offset)
         offset += 8
-        (0..num_pairs-1).each do |i|
-          key = at(offset+i*6,4)
-          value = geti16(offset+i*6+4)
-          k = Kerning.new
-          if flags.allbits?(CROSS_STREAM_KERNING)
-            k.y_shift = value
-          else
-            k.x_shift = value
-          end
-          @kerning[key] = k
+        getu16(offset-8).times do |i|
+          v = geti16(offset+i*6+4)
+          @kerning[at(offset+i*6,4)] =
+            Kerning.new(* flags.allbits?(CROSS_STREAM_KERNING) ? [0,v] : [v,0])
         end
-        offset += length
       end
       offset += length
-      num_tables -= 1
     end
     @kerning
   end

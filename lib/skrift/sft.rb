@@ -35,9 +35,7 @@ class SFT
     adv, lsb = @font.hor_metrics(glyph)
 
     return nil if adv.nil?
-    metrics = GMetrics.new
-    metrics.advance_width = adv * xs
-    metrics.left_side_bearing = lsb * xs + @x_offset
+    metrics = GMetrics.new(adv * xs, lsb * xs + @x_offset)
 
     outline = font.outline_offset(glyph)
     return metrics if outline.nil?
@@ -87,7 +85,6 @@ class SFT
   end
 
   def kerning(left_glyph, right_glyph) # 176
-    k = font.kerning
-    k[[left_glyph,right_glyph].pack("n*")]
+    @font.kerning[[left_glyph,right_glyph].pack("n*")]
   end
 end

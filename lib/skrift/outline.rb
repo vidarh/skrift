@@ -6,9 +6,7 @@ class Outline
   attr_reader :points
   
   def initialize
-    @points = []
-    @curves = []
-    @lines = []
+    @points, @curves, @lines = [],[],[]
   end
 
   # A heuristic to tell whether a given curve can be approximated closely enough by a line. */
@@ -32,7 +30,7 @@ class Outline
     return image
   end
 
-  def tesselate_curve(curve) # 1157
+  def tesselate_curve(curve)
     stack=[]
     top = 0
     loop do
@@ -73,10 +71,9 @@ class Outline
   end
   
   def decode_contour(flags, base_point, count) # 909
-    # Countours w/less than two points should be invisible (no area)
-    return true if count < 2
+    return true if count < 2 # Invisible (no area)
 
-    if (flags[0] & Font::POINT_IS_ON_CURVE) > 0
+    if flags[0].allbits?(Font::POINT_IS_ON_CURVE)
       loose_end = base_point
       base_point+= 1
       flags = flags[1..-1]

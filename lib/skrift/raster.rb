@@ -7,20 +7,6 @@ class Raster
     @cells = (0..(width*height-1)).map { Cell.new(0.0,0.0) }
   end
 
-  def print_debug
-    @height.times do |y|
-      @width.times do |x|
-        cell = @cells[y*@width + x]
-        if cell.area == 0.0 && cell.cover == 0.0
-          print "0 "
-        else
-          printf "(a: %4.2f; c: %4.2f) ", cell.area, cell.cover
-        end
-      end
-      puts
-    end
-  end
-  
   # Integrate the values in the buffer to arrive at the final grayscale image.
   def post_process
     accum = 0.0
