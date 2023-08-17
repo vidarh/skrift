@@ -52,16 +52,9 @@ class Font
   def getu32(offset); at(offset,4).unpack1("N"); end
 
   def tables
-    return @tables if @tables
-    num_tables = getu16(4)
-    @tables = {}
-    num_tables.times do |t|
-      beg = 12 + t*16
-      tag = memory[beg..beg+3]
-      off = getu32(beg+8)
-      @tables[tag] = off
-    end
-    @tables
+    @tables ||= Hash[*
+      getu16(4).times.collect {|t| [at(t*16 + 12,4),getu32(t*16 + 20)] }.flatten
+    ]
   end
 
   def reqtable(tag)
