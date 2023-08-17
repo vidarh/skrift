@@ -79,7 +79,7 @@ class Font
   def outline_offset(glyph) # 806
     loca = reqtable("loca")
     glyf = reqtable("glyf")
-    if loca_format == 0
+    if @loca_format == 0
       base = loca + 2 * glyph
       this  = 2 * getu16(base)
       next_ = 2 * getu16(base + 2)
