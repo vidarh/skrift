@@ -93,8 +93,7 @@ class Font
 
   def each_cmap_entry
     cmap = reqtable("cmap")
-    num_entries = getu16(cmap + 2)
-    num_entries.times do |idx|
+    getu16(cmap + 2).times do |idx|
       entry = cmap + 4 + idx * 8
       type = getu16(entry) * 0100 + getu16(entry + 2)
       table = cmap + getu32(entry + 4)
