@@ -5,7 +5,8 @@ This started out as a Ruby port of `libschrift`. If you need
 performance, and don't mind a C dependency, consider that over this.
 
 If you're fine with slower rendering (*cache* glyphs after rendering)
-and want *pure Ruby*, consider this gem.
+and want *pure Ruby*, consider this gem, with the caveat that the
+rewrite is *new* and likely buggy.
 
 "Skrift" is Norwegian for "text", "writing", or "scripture", and so a
 close cognate of "Schrift". Since I'm Norwegian, it seemed like an
@@ -50,7 +51,8 @@ may not agree with. These are *my responsibility*:
   TTF/ OTF parser in pure Ruby, I *might* consider tearing out the
   font parsing from this gem if using yours simplifies the `Skrift` code)
   
-* Idiomatic Ruby is favoured over maximising efficiency.
+* Idiomatic Ruby is favoured over maximising efficiency (but
+  pathologically low performance is not good - I'm open to changes)
 
 * Lowering coupling is favoured (be it for testing, or ease of improving
   the code), but architecture acrobatics should be avoided. That is,
@@ -77,11 +79,15 @@ Some possible areas for extension, and my current thoughts on them
 No.
 
 I will happily ensure there necessary APIs are there so that you can
-*wrap* `Skrift`, or so that you can render to something that makes it
-convenient. I will not, however, put platform specific code in `
-Skrift` itself (I *will* accept code well-written code to make use of
-"platform specific" data *from the font files*, however, because they can
-be useful on other platforms)
+*wrap* or integrate with `Skrift`, or so that you can render to something
+that makes it convenient. E.g. the current rendering to 8 bit
+greyscale already makes `Skrift` (thanks to `libschrift` doing this from
+the start) integrate easily with `XRender` for X11 support.
+
+I will not, however, put platform specific code in `Skrift` itself (I
+*will* accept code well-written code to make use of "platform specific"
+data *from the font files*, however, because they can be useful on other
+platforms)
 
 I use this code for rendering to `X11` myself. It does not require
 pushing platform specific code into this library.
@@ -93,10 +99,10 @@ Performance improvements are welcome *but not if they add a lot of
 complexity*. C-extensions or similar will not be accepted - if you
 want a C dependency, just use `libschrift`.
 
-If you have a suggestion that involves using C, I'd suggest providing a
-*separate* gem to replace/extend the appropriate code the same way
-`oily_png` provides code to speed up `chunky_png`. I'm happy to discuss
-specifics.
+If you have a suggestion that involves using C in a limited way to speed
+up specifics, I'd suggest providing a *separate* gem to replace/extend
+the appropriate code the same way `oily_png` provides code to speed up
+`chunky_png`. I'm happy to discuss specifics.
 
 ### Grid snapping
 
@@ -110,11 +116,12 @@ fonts)
 
 ### Transformations
 
-I would be supportive of *compact* contributions to allow applying affine
-transforms (rotations, shears etc.) during rendering, though it may be
-better to then extract the outlines and render separately. Please
-discuss API first if you want anything merged, or if you just want
-stable extension points to do this in a separate library.
+The current code already applies linear affine transformations to the
+glyphs. I'd be supportive of *compact* contributions to make it easier to
+apply a broader set of transforms during rendering to allow for more
+flexible layout. Please discuss API first if you want anything merged, or
+if you just want stable extension points to do this in a separate
+library.
 
 ### Outlines
 
@@ -123,12 +130,12 @@ rendering stage and render unfilled outlines on your own. That said, I'd
 be supportive both of low complexity changes to render the fonts as
 outlines *and* of low complexity changes to "grow" outlines (e.g. to
 be able to render an outline in one colour and a filled version in the
-desired size in another colour - you can't do this by just scaling).
+desired size in another colour - you can't do this by just scaling). The
+code that'd need to change to replace the rasteriser is tiny.
 
 ### Text Layout
 
-Specifically, *text layout* is out of scope of this library, but I would
-very much welcome work on quality text layout *using* this library (so I
-don't have to do it myself...) and would be very happy to ensure a tight
-integration is possible.
-
+Specifically, *text layout* is perhaps out of scope of this library, but
+I'm happy to discuss it - if nothing else I'd be supportive of an
+extension in a separate gem and/or ensuring the basics is well
+supported.
