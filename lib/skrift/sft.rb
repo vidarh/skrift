@@ -59,7 +59,6 @@ class SFT
 
   def render(glyph, image) # 239
     outline = @font.outline_offset(glyph)
-    p outline
     return false if outline.nil?
     return true if outline.nil?
     bbox = glyph_bbox(outline)
@@ -75,6 +74,7 @@ class SFT
       transform = Matrix.rows([xr, [0.0, +ys, @y_offset - bbox[1] ]])
     end
     outl = @font.decode_outline(outline)
+    outl.render(transform, image)
   end
 
   def kerning(left_glyph, right_glyph) # 176
