@@ -37,7 +37,7 @@ class SFT
     return nil if adv.nil?
     metrics = GMetrics.new(adv * xs, lsb * xs + @x_offset)
 
-    outline = font.outline_offset(glyph)
+    outline = @font.outline_offset(glyph)
     return metrics if outline.nil?
     bbox = glyph_bbox(outline)
     return nil if !bbox
@@ -75,7 +75,6 @@ class SFT
       transform = Matrix.rows([xr, [0.0, +ys, @y_offset - bbox[1] ]])
     end
     outl = @font.decode_outline(outline)
-    outl.render(transform, image)
   end
 
   def kerning(left_glyph, right_glyph) # 176

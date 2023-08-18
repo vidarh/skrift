@@ -2,30 +2,9 @@ class Font
   # TrueType, TrueType, OpenType
   FILE_MAGIC = ["\0\1\0\0", "true", "OTTO"]
 
-  POINT_IS_ON_CURVE    = 0x01
-  X_CHANGE_IS_SMALL    = 0x02
-  Y_CHANGE_IS_SMALL    = 0x04
-  REPEAT_FLAG          = 0x08
-  X_CHANGE_IS_ZERO     = 0x10
-  X_CHANGE_IS_POSITIVE = 0x10
-  Y_CHANGE_IS_ZERO     = 0x20
-  Y_CHANGE_IS_POSITIVE = 0x20
+  attr_reader :memory, :units_per_em
 
-  HORIZONTAL_KERNING   = 0x01
-  MINIMUM_KERNING      = 0x02
-  CROSS_STREAM_KERNING = 0x04
-  OVERRIDE_KERNING     = 0x08
-
-  OFFSETS_ARE_LARGE         = 0x001
-  ACTUAL_XY_OFFSETS         = 0x002
-  GOT_A_SINGLE_SCALE        = 0x008
-  THERE_ARE_MORE_COMPONENTS = 0x020
-  GOT_AN_X_AND_Y_SCALE      = 0x040
-  GOT_A_SCALE_MATRIX        = 0x080
-  
-  attr_accessor :memory, :units_per_em
-
-  def initialize(memory) # 333
+  def initialize(memory)
     @memory = memory
     raise "Unsupported format (magic value: #{at(0,4).inspect})" if !FILE_MAGIC.member?(at(0,4))
     head = reqtable("head")
@@ -53,25 +32,16 @@ class Font
 
   def tables
     @tables ||= Hash[*
-      getu16(4).times.collect {|t| [at(t*16 + 12,4),getu32(t*16 + 20)] }.flatten
+      getu16(4).times.map {|t| [at(t*16 + 12,4),getu32(t*16 + 20)] }.flatten
     ]
   end
 
-  def reqtable(tag)
-    tables[tag] or raise "Unable to get table '#{tag}'"
-  end
-
-  def gettable(tag) # 557
-    return tables[tag]
-  end
+  def reqtable(tag); tables[tag] or raise "Unable to get table '#{tag}'"; end
+  def gettable(tag); tables[tag]; end
 
   def glyph_bbox(outline)
-    box = [0,0,0,0]
-    box[0] = geti16(outline + 2)
-    box[1] = geti16(outline + 4)
-    box[2] = geti16(outline + 6)
-    box[3] = geti16(outline + 8)
-    raise "Broken bbox #{box.inspect}" if box[2] <= box[0] || box[3] <= box[1]
+    box = at(outline+2, 8).unpack("s>*")
+    raise "Broken bbox #{box.inspect}" if box[2] < box[0] || box[3] < box[1]
     return box
   end
 
@@ -84,9 +54,7 @@ class Font
       this  = 2 * getu16(base)
       next_ = 2 * getu16(base + 2)
     else
-      base = loca + 4 * glyph
-      this = getu32(base)
-      next_= getu32(base + 4)
+      this, next_ = at(loca + 4 * glyph,8).unpack("NN")
     end
     return this == next_ ? nil : glyf + this
   end
@@ -94,9 +62,9 @@ class Font
   def each_cmap_entry
     cmap = reqtable("cmap")
     getu16(cmap + 2).times do |idx|
-      entry = cmap + 4 + idx * 8
-      type = getu16(entry) * 0100 + getu16(entry + 2)
-      table = cmap + getu32(entry + 4)
+      entry  = cmap + 4 + idx * 8
+      type   = getu16(entry) * 0100 + getu16(entry + 2)
+      table  = cmap + getu32(entry + 4)
       format = getu16(table)
       yield(type, table, format)
     end
@@ -125,8 +93,7 @@ class Font
   def hor_metrics(glyph)
     hmtx = reqtable("hmtx")
     return nil if hmtx.nil?
-    if glyph < @num_long_hmtx
-      # Glyph is inside long metrics segment
+    if glyph < @num_long_hmtx # In long metrics segment?
       offset = hmtx + 4 * glyph
       return getu16(offset), geti16(offset + 2)
     end
@@ -147,12 +114,10 @@ class Font
     raise "Error" if (seg_count_x2 & 1) != 0 or seg_count_x2 == 0
     # Find starting positions of the relevant arrays
     end_codes        = table + 8
-    start_codes      = end_codes + seg_count_x2 + 2
+    start_codes      = end_codes   + seg_count_x2 + 2
     id_deltas        = start_codes + seg_count_x2
-    id_range_offsets = id_deltas + seg_count_x2
+    id_range_offsets = id_deltas   + seg_count_x2
 
-    # Find the segment that contains short_code by binary searching over
-    # the highest codes in the segments
     @ecodes ||= at(end_codes,seg_count_x2 -1).unpack("n*")
     seg_id_x_x2 = @ecodes.bsearch_index {|i| i > char_code } * 2
 
@@ -165,42 +130,8 @@ class Font
       return (char_code + id_delta) & 0xffff
     end
     # Calculate offset into glyph array and determine ultimate value
-    id_offset = id_range_offsets + seg_id_x_x2 + id_range_offset + 2 * (char_code - start_code)
-    id = getu16(id_offset)
+    id = getu16(id_range_offsets + seg_id_x_x2 + id_range_offset + 2 * (char_code - start_code))
     return id ? (id + id_delta) & 0xffff : 0
-  end
-
-
-  # For a 'simple' outline, decodes both X and Y coordinates for each point of the outline
-  def simple_points(offset, num_pts, flags, points, base_point) # 866
-    accum = 0
-    num_pts.times do |i|
-      if flags[i].allbits?(X_CHANGE_IS_SMALL)
-        value = getu8(offset)
-        offset += 1
-        bit = flags[i].allbits?(X_CHANGE_IS_POSITIVE) ? 1 : 0
-        accum -= (value ^ -bit) + bit
-      elsif flags[i].nobits?(X_CHANGE_IS_ZERO)
-        accum += geti16(offset)
-        offset += 2
-      end
-      points << Vector[accum.to_f,0.0]
-    end
-
-    accum = 0
-    num_pts.times do |i|
-      if flags[i].allbits?(Y_CHANGE_IS_SMALL)
-        value = getu8(offset)
-        offset+=1
-        bit = flags[i].allbits?(Y_CHANGE_IS_POSITIVE) ? 1 : 0
-        accum -= (value ^ -bit) + bit
-      elsif flags[i].nobits?(Y_CHANGE_IS_ZERO)
-        accum += geti16(offset)
-        offset += 2
-      end
-      points[base_point+i][1] = accum.to_f
-    end
-    true
   end
 
   def decode_outline(offset, rec_depth = 0, outl = Outline.new)
@@ -211,29 +142,27 @@ class Font
   end
 
   def cmap_fmt6(table, char_code) # 621
-    return nil if char_code > 0xffff
-    first_code  = getu16(table)
-    return nil if (char_code < first_code)
-    entry_count = getu16(table + 2)
+    first_code, entry_count  = at(table,4).unpack("S>*")
+    return nil if !char_code.between?(first_code, 0xffff)
     char_code -= first_code
     return nil if (char_code >= entry_count)
     return getu16(table + 4 + 2 * char_code)
   end
 
-  def cmap_fmt12_13(table, char_code, which) # 645
+  def cmap_fmt12_13(table, char_code, which)
     getu32(table + 12).times do |i|
-      first_code   = getu32(table + (i * 12) + 16)
-      last_code    = getu32(table + (i * 12) + 16 + 4)
+      first_code, last_code, glyph_offset = at(table + (i*12) + 16, 12).unpack("N*")
       next if char_code < first_code || char_code > last_code
-      glyph_offset = getu32(table + (i * 12) + 16 + 8)
       glyph_offset += char_code-first_code if which == 12
       return glyph_offset
     end
     return nil
   end
 
+  REPEAT_FLAG          = 0x08
+
   # For a simple outline, determines each point of the outline with a set of flags
-  def simple_flags(off, num_pts, flags) # 840
+  def simple_flags(off, num_pts, flags)
     value  = 0
     repeat = 0
     num_pts.times do |i|
@@ -252,51 +181,114 @@ class Font
     return off
   end
 
+  X_CHANGE_IS_SMALL    = 0x02 # x2 for Y
+  X_CHANGE_IS_ZERO     = 0x10 # x2 for Y
+  X_CHANGE_IS_POSITIVE = 0x10 # x2 for Y
+
+  def simple_points(offset, num_pts, points, base_point)
+    [].tap do |flags|
+      offset = simple_flags(offset, num_pts, flags)
+
+      accum = 0.0
+      accumulate = ->(i, factor) do
+        if flags[i].allbits?(X_CHANGE_IS_SMALL * factor)
+          offset += 1
+          bit = flags[i].allbits?(X_CHANGE_IS_POSITIVE * factor) ? 1 : 0
+          accum -= (getu8(offset-1) ^ -bit) + bit
+        elsif flags[i].nobits?(X_CHANGE_IS_ZERO * factor)
+          offset += 2
+          accum += geti16(offset-2)
+        end
+        accum
+      end
+    
+      num_pts.times {|i| points << Vector[accumulate.call(i,1), 0.0] }
+      accum = 0.0
+      num_pts.times {|i| points[base_point+i][1] = accumulate.call(i,2) }
+    end
+  end
+
   def simple_outline(offset, num_contours, outl = Outline.new)
     base_points = outl.points.length
-    num_pts = getu16(offset + (num_contours - 1) *2)
-    raise "Overflow" if num_pts > 65535
-    num_pts += 1
-    end_pts = []
-    num_contours.times do |i|
-      end_pts << getu16(offset)
-      offset += 2
-    end
-    # Ensure that end_pts are never falling
-    # Falling end_pts have no sensible interpretation and most likely only occur in malicious input
+    num_pts = getu16(offset + (num_contours - 1) *2) + 1
+    end_pts = at(offset, num_contours*2).unpack("S>*")
+    offset += 2*num_contours
+    # Falling end_pts have no sensible interpretation, so treat as error
     end_pts.each_cons(2) { |a, b| raise if b < a + 1 }
     offset += 2 + getu16(offset)
 
-    flags = []
-    offset = simple_flags(offset, num_pts, flags)
-    raise if offset.nil?
-    raise if !simple_points(offset, num_pts, flags, outl.points, base_points)
+    flags = simple_points(offset, num_pts, outl.points, base_points)
 
     beg = 0
     num_contours.times do |i|
-      count = end_pts[i] - beg + 1
-      outl.decode_contour(flags[beg..-1], base_points+beg, count)
+      decode_contour(outl, flags, beg, base_points+beg, end_pts[i] - beg + 1)
       beg = end_pts[i] + 1
     end
     outl
   end
 
+  POINT_IS_ON_CURVE    = 0x01
+
+  def decode_contour(outl, flags, off, base_point, count)
+    return true if count < 2 # Invisible (no area)
+
+    if flags[off].allbits?(POINT_IS_ON_CURVE)
+      loose_end = base_point
+      base_point+= 1
+      off += 1
+      count -= 1
+    elsif flags[off + count - 1].allbits?(POINT_IS_ON_CURVE)
+      count -= 1
+      loose_end = base_point + count
+    else
+      loose_end = outl.points.length
+      outl.points << midpoint(outl.points[base_point], outl.points[base_point + count - 1])
+    end
+    beg  = loose_end
+    ctrl = nil
+    count.times do |i|
+      cur = base_point + i
+      if flags[off+i].allbits?(POINT_IS_ON_CURVE)
+        outl.segments << Outline::Segment.new(beg, cur, ctrl)
+        beg = cur
+        ctrl = nil
+      else
+        if ctrl # 2x control points in a row -> insert midpoint
+          center = outl.points.length
+          outl.points << midpoint(outl.points[ctrl], outl.points[cur])
+          outl.segments << Outline::Segment.new(beg, center, ctrl)
+          beg = center
+        end
+        ctrl = cur
+      end
+    end
+    outl.segments << Outline::Segment.new(beg, loose_end, ctrl)
+    return true
+  end
+
+  OFFSETS_ARE_LARGE         = 0x001
+  ACTUAL_XY_OFFSETS         = 0x002
+  GOT_A_SINGLE_SCALE        = 0x008
+  THERE_ARE_MORE_COMPONENTS = 0x020
+  GOT_AN_X_AND_Y_SCALE      = 0x040
+  GOT_A_SCALE_MATRIX        = 0x080
+
   def compound_outline(offset, rec_depth, outl) # 1057
     # Guard against infinite recursion (compound glyphs that have themselves as component).
-    return -1 if rec_depth >= 4
+    return nil if rec_depth >= 4
     flags = THERE_ARE_MORE_COMPONENTS
     while flags.allbits?(THERE_ARE_MORE_COMPONENTS)
-      flags = getu16(offset)
-      glyph = getu16(offset + 2)
+      flags, glyph = at(offset,4).unpack("S>*")
+      p [flags,glyph]
       offset += 4
       # We don't implement point matching, and neither does stb truetype
-      return -1 if (flags & ACTUAL_XY_OFFSETS) == 0
+      return nil if (flags & ACTUAL_XY_OFFSETS) == 0
       # Read additional X and Y offsets (in FUnits) of this component.
       if (flags & OFFSETS_ARE_LARGE) != 0
-        local = Matrix[[1.0, 0.0, geti16(offset)], [1.0,0.0, geti16(offset+2)]]
+        local = Matrix[[1.0, 0.0, geti16(offset)], [0.0,1.0, geti16(offset+2)]]
         offset += 4
       else
-        local = Matrix[[1.0, 0.0, geti8(offset)], [1.0, 0.0, geti8(offset)+1]]
+        local = Matrix[[1.0, 0.0, geti8(offset)], [0.0, 1.0, geti8(offset)+1]]
         offset += 2
       end
 
@@ -314,14 +306,20 @@ class Font
         local[1][1] = geti16(offset + 6) / 16384.0
         offset += 8
       end
+
       outline = outline_offset(glyph)
       return nil if outline.nil?
       base_point = outl.points.length
       return nil if decode_outline(outline, rec_depth + 1, outl).nil?
-      transform_points(outl.points[base_point..-1], local)
+      transform_points(local,outl.points[base_point..-1])
     end
     return outl
   end
+
+  HORIZONTAL_KERNING   = 0x01
+  MINIMUM_KERNING      = 0x02
+  CROSS_STREAM_KERNING = 0x04
+  OVERRIDE_KERNING     = 0x08
 
   def kerning
     return @kerning if @kerning
@@ -330,10 +328,7 @@ class Font
     offset += 4
     @kerning = {}
     getu16(offset - 2).times do
-      # Read subtable header
-      length = getu16(offset + 2)
-      format = getu8(offset + 4)
-      flags  = getu8(offset + 5)
+      length,format,flags = at(offset+2,6).unpack("S>CC")
       offset += 6
       if format == 0 && flags.allbits?(HORIZONTAL_KERNING) && flags.nobits?(MINIMUM_KERNING)
         offset += 8
