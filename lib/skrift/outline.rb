@@ -33,22 +33,18 @@ class Outline
   end
 
   def tesselate_curve(curve)
-    stack=[]
-    while curve
-      if is_flat(curve)
-        @lines << Segment.new(curve.beg, curve.end)
-        curve = stack.pop
-      else
-        ctrl0 = @points.length
-        @points << midpoint(@points[curve.beg], @points[curve.ctrl])
-        ctrl1 = @points.length
-        @points << midpoint(@points[curve.ctrl], @points[curve.end])
-        pivot = @points.length
-        @points << midpoint(@points[ctrl0], @points[ctrl1])
-        stack << Segment.new(curve.beg, pivot, ctrl0)
-        curve = Segment.new(pivot, curve.end, ctrl1)
-      end
+    if is_flat(curve)
+      @segments << Segment.new(curve.beg, curve.end)
+      return
     end
+    ctrl0 = @points.length
+    @points << midpoint(@points[curve.beg], @points[curve.ctrl])
+    ctrl1 = @points.length
+    @points << midpoint(@points[curve.ctrl], @points[curve.end])
+    pivot = @points.length
+    @points << midpoint(@points[ctrl0], @points[ctrl1])
+    tesselate_curve(Segment.new(curve.beg, pivot, ctrl0))
+    tesselate_curve(Segment.new(pivot, curve.end, ctrl1))
   end
 
   def draw_lines(buf)
