@@ -1,6 +1,8 @@
 
 # Skrift
 
+Vidar Hokstad <vidar@hokstad.com>
+
 This started out as a Ruby port of `libschrift`. If you need
 performance, and don't mind a C dependency, consider that over this.
 
@@ -8,12 +10,19 @@ If you're fine with slower rendering (*cache* glyphs after rendering)
 and want *pure Ruby*, consider this gem, with the caveat that the
 rewrite is *new* and likely buggy.
 
+## Name
+
 "Skrift" is Norwegian for "text", "writing", or "scripture", and so a
 close cognate of "Schrift". Since I'm Norwegian, it seemed like an
 appropriate way to set this apart from `libschrift` and ensure that if
 anyone want to do a gem directly wrapping the C librarly the name remains
 available.
 
+## License
+
+While it's rewritten in Ruby and changed reasonably since, given it owes
+so much to `libschrift`, I decided to stick with the same license (the
+ISC License), since it's very permissive. See `LICENSE.md`
 
 ## This code is opinionated
 
