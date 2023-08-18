@@ -9,6 +9,7 @@ f = Font.load("resources/Ubuntu-Regular.ttf")
 #f = Font.load("resources/FiraGO-Regular.ttf")
 #f = Font.load("/usr/share/fonts/opentype/cantarell/Cantarell-Regular.otf")
 p f.tables
+#p f.kerning
 
 sft = SFT.new(f)
 sft.x_scale =  20
@@ -18,27 +19,28 @@ sft.y_offset = 0
 
 PP.pp sft.lmetrics
 
-gid = sft.lookup(ARGV[0][0].ord)
-p gid
-if ARGV[0][1]
-  f.reqtable("kern")
-  #PP.pp f.kerning.map {|k,v|
-  #  [k.unpack("n*"), v]
-  #}
-  
-  gid2 = sft.lookup(ARGV[0][1].ord)
-  PP.pp sft.kerning(gid,gid2)
-  exit
+if ARGV[0] == "gid"
+  gid = ARGV[1].to_i
+elsif ARGV[0]
+  gid = sft.lookup(ARGV[0][0].ord)
+  p gid
+  if ARGV[0][1]
+    f.reqtable("kern")
+    #PP.pp f.kerning.map {|k,v|
+    #  [k.unpack("n*"), v]
+    #}
+    
+    gid2 = sft.lookup(ARGV[0][1].ord)
+    PP.pp sft.kerning(gid,gid2)
+    exit
+  end
 end
 
 #gid = 12
 
-#(0..10000).each do |gid|
-#  next if gid == 5649 # FIXME
-#  next if gid == 5650 # FIXME
-  # 5660: FIXME. Is this past the max?
+def test_glyph(sft, gid)
   puts "TESTING GLYPH #{gid}"
-mtx = sft.gmetrics(gid)
+  mtx = sft.gmetrics(gid)
 p mtx
 
 #p sft.gmetrics(sft.lookup(0x43))
@@ -63,5 +65,13 @@ img.height.times do |row|
   puts "\033[39;49m"
 end
 end
-#end
-#
+end
+
+if gid
+  test_glyph(sft,gid)
+else
+  (0..10000).each do |gid|
+    test_glyph(sft,gid)
+  end
+end
+
